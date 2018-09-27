@@ -1,0 +1,4 @@
+rm -rf data/dac_train
+rm -rf data/dac_val
+rm -rf save_model/graphics
+rm -rf save_model/dac_CHECKPOINTS

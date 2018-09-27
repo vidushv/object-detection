@@ -1,0 +1,5 @@
+cd test_img/output
+rm *
+cd ..
+cd input
+rm *
