@@ -54,14 +54,14 @@ random = 1
 # score = 0.3
 # iou = 0.7
 
-num_epochs = 80
+num_epochs = 100
 batch_size = 32
 threshold = 0.5
 ignore_thresh = 0.5
 truth_thresh = 1
 momentum = 0.9
 decay = 0.0005
-learning_rate = 1e-3
+learning_rate = 2e-3
 burn_in = 1000
 max_batches = 500200
 

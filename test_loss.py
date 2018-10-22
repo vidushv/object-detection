@@ -134,10 +134,12 @@ with graph.as_default():
                 print("(batch: {}, \tepoch: {})\tloss: {:.2f}\ttime: {:.1f}".format(batch+1, epoch + 1, loss_train, duration))
                 print("{} boxes founded in the image.".format(box_array.shape[0]))
 
-            if(epoch == 20):
+            if(epoch == 10):
                 learning_rate *= 0.5
             elif(epoch == 60):
-                learning_rate *= 0.4
+                learning_rate *= 0.5
+            elif(epoch == 90):
+                learning_rate *= 0.5
             print("learning rate changes to {}".format(learning_rate))
             
             ''' 
