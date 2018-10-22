@@ -1,7 +1,7 @@
 # from argparse import ArgumentParser
 
 from configuration.config import Input_shape, channels, threshold, ignore_thresh, visible_GPU, num_epochs
-from configuration.config import anchors_path, dataset_name, dataset_class_file, model_checkpoint_path, font_file
+from configuration.config import anchors_path, project_path, dataset_name, dataset_class_file, model_checkpoint_path, font_file
 from configuration.config import input_test_img_path, output_test_img_path, train_file_path, val_file_path
 from model.net import YOLOv3
 from model.detect_function import predict
@@ -39,10 +39,11 @@ class YOLO(object):
             print("-----------COCO-----------")
             self.COCO = True
             self.trainable = False
+            self.class_names = read_classes(project_path+'/data/coco_classes.txt')
         else:
             print("----------{}-----------".format(dataset_name))
+            self.class_names = read_classes(dataset_class_file)
 
-        self.class_names = read_classes(dataset_class_file)
         self.anchors = read_anchors(self.anchors_path)
         self.threshold = threshold# threshold
         self.ignore_thresh = ignore_thresh
@@ -66,7 +67,7 @@ class YOLO(object):
         tf.reset_default_graph()
 
         # Generate colors for drawing bounding boxes.
-        hsv_tuples = [(x / len(self.class_names), 1., 1.) for x in range(len(self.class_names))]
+        hsv_tuples = [(x *1.0/ len(self.class_names), 1., 1.) for x in range(len(self.class_names))]
         self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
         self.colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), self.colors))
         random.seed(10101)  # Fixed seed for consistent colors across runs.
@@ -118,18 +119,18 @@ class YOLO(object):
 
     def detect_image(self, image):
         # Generate colors for drawing bounding boxes.
-        hsv_tuples = [(x / len(self.class_names), 1., 1.) for x in range(len(self.class_names))]
+        hsv_tuples = [(x *1.0/ len(self.class_names), 1., 1.) for x in range(len(self.class_names))]
         self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
         self.colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), self.colors))
         random.seed(10101)  # Fixed seed for consistent colors across runs.
         random.shuffle(self.colors)  # Shuffle colors to decorrelate adjacent classes.
         random.seed(None)  # Reset seed to default.
-
         if self.is_fixed_size:
             assert self.INPUT_SIZE[0] % 32 == 0, 'Multiples of 32 required'
             assert self.INPUT_SIZE[1] % 32 == 0, 'Multiples of 32 required'
             boxed_image, image_shape = letterbox_image(image, tuple(reversed(self.INPUT_SIZE)))
             # boxed_image, image_shape = resize_image(image, tuple(reversed(self.INPUT_SIZE)))
+            #boxed_image.save("/home/yz2499/v2_yolo3/test.jpg")
         else:
             new_image_size = (image.width - (image.width % 32), image.height - (image.height % 32))
             boxed_image, image_shape = letterbox_image(image, new_image_size)
@@ -139,13 +140,12 @@ class YOLO(object):
         print("heights, widths:", image_shape)
         image_data /= 255.
         inputs = np.expand_dims(image_data, 0)  # Add batch dimension. #
-
         out_boxes, out_scores, out_classes = self.sess.run([self.boxes, self.scores, self.classes],
                                                            feed_dict={self.x: inputs,
                                                                       self.image_shape: image_shape,
                                                                       # self.is_training: False
                                                                       })
-
+        print("box matrix",out_boxes)
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
         # Visualisation#################################################################################################

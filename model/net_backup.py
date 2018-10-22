@@ -210,35 +210,32 @@ class YOLOv3(object):
                 # we will initialize weights by a Gaussian distribution with mean 0 and variance 1/sqrt(n)
                 # don't set all = 0 or =
                 if idx == 59:
-                    print("Building trainable layer 59 as part of the detector...")
                     # weights = tf.Variable(
                     #     tf.random_normal(shape=[1, 1, 1024, 3 * (self.NUM_CLASSES + 1 + 4)], mean=0.0, stddev=0.01), trainable=True,
                     #     dtype=tf.float32, name="weights")
                     weights = tf.Variable(
                         np.random.normal(size=[1, 1, 1024, 3 * (self.NUM_CLASSES + 1 + 4)], loc=0.0, scale=0.01), trainable=True,
-                        dtype=np.float32, name=name_w)
+                        dtype=np.float32, name="weights")
                 elif idx == 67:
-                    print("Building trainable layer 67 as part of the detector...")
                     weights = tf.Variable(
                         np.random.normal(size=[1, 1, 512, 3 * (self.NUM_CLASSES + 1 + 4)], loc=0.0, scale=0.01),
                         trainable=True,
-                        dtype=np.float32, name=name_w)
+                        dtype=np.float32, name="weights")
                 else:
-                    print("Building trainable layer 75 as part of the detector...")
                     weights = tf.Variable(
                         np.random.normal(size=[1, 1, 256, 3 * (self.NUM_CLASSES + 1 + 4)], loc=0.0, scale=0.01),
                         trainable=True,
-                        dtype=np.float32, name=name_w)
+                        dtype=np.float32, name="weights")
             else:
-                weights = tf.Variable(W(idx), trainable=tous, dtype=tf.float32, name=name_w)
+                weights = tf.Variable(W(idx), trainable=tous, dtype=tf.float32, name="weights")
             tf.summary.histogram(name_w, weights)  # add summary
 
             if stride == 2:
                 paddings = tf.constant([[0, 0], [1, 0], [1, 0], [0, 0]])
                 inputs_pad = tf.pad(inputs, paddings, "CONSTANT")
-                conv = tf.nn.conv2d(inputs_pad, weights, strides=[1, stride, stride, 1], padding='VALID', name=name_conv)
+                conv = tf.nn.conv2d(inputs_pad, weights, strides=[1, stride, stride, 1], padding='VALID', name="nn_conv")
             else:
-                conv = tf.nn.conv2d(inputs, weights, strides=[1, stride, stride, 1], padding='SAME', name=name_conv)
+                conv = tf.nn.conv2d(inputs, weights, strides=[1, stride, stride, 1], padding='SAME', name="conv")
 
             if batch_norm_and_activation:  # TODO
                 # conv_1 ---> conv_75 EXCEPT conv_59, conv_67, conv_75
@@ -282,9 +279,9 @@ class YOLOv3(object):
                     biases = tf.Variable(
                         np.random.normal(size=[3 * (self.NUM_CLASSES + 1 + 4), ], loc=0.0, scale=0.01),
                         trainable=True,
-                        dtype=np.float32, name=name_b)
+                        dtype=np.float32, name="biases")
                 else:
-                    biases = tf.Variable(B(idx), trainable=False, dtype=tf.float32, name=name_b)
+                    biases = tf.Variable(B(idx), trainable=False, dtype=tf.float32, name="biases")
                 tf.summary.histogram(name_b, biases)  # add summary
                 conv = tf.add(conv, biases)
                 return conv

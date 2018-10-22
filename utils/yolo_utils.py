@@ -14,6 +14,8 @@ def read_classes(classes_path):
     with open(classes_path) as f:
         class_names = f.readlines()
     class_names = [c.strip() for c in class_names]
+    if class_names[-1] == '':
+        class_names.pop()
     return class_names
 
 def read_anchors(anchors_path):
@@ -32,7 +34,7 @@ def get_training_data(annotation_path, data_path, input_shape, anchors, num_clas
     :param max_boxes: 100: maximum number objects of an image
     :param load_previous: for 2nd, 3th, .. using
     :return: image_data [N, 416, 416, 3] not yet normalized, N: number of image
-             box_data: box format: [N, 100, 6], 100: maximum number of an image
+             box_data: box format: [N, 100, 5], 100: maximum number of an image
                                                 6: top_left{x_min,y_min},bottom_right{x_max,y_max},class_index (no space)
                                                 /home/minh/keras-yolo3/VOCdevkit/VOC2007/JPEGImages/000012.jpg 156,97,351,270,6
     """
@@ -73,10 +75,10 @@ def get_training_data(annotation_path, data_path, input_shape, anchors, num_clas
                 image_size = np.array(image.size)
                 input_size = np.array(input_shape[::-1])
                 # for case 2
-                new_size = (image_size * np.min(input_size/image_size)).astype(np.int32)
+                new_size = (image_size * np.min(input_size*1.0/image_size)).astype(np.int32)
                 # Correct BB to new image
-                boxes[i:i+1, 0:2] = (boxes[i:i+1, 0:2]*new_size/image_size + (input_size-new_size)/2).astype(np.int32)
-                boxes[i:i+1, 2:4] = (boxes[i:i+1, 2:4]*new_size/image_size + (input_size-new_size)/2).astype(np.int32)
+                boxes[i:i+1, 0:2] = (boxes[i:i+1, 0:2]*new_size*1.0/image_size + (input_size-new_size)/2.).astype(np.int32)
+                boxes[i:i+1, 2:4] = (boxes[i:i+1, 2:4]*new_size*1.0/image_size + (input_size-new_size)/2.).astype(np.int32)
                 # for case 1
                 # boxes[i:i + 1, 0] = (boxes[i:i + 1, 0] * input_size[0] / image_size[0]).astype('int32')
                 # boxes[i:i + 1, 1] = (boxes[i:i + 1, 1] * input_size[1] / image_size[1]).astype('int32')
@@ -114,8 +116,8 @@ def letterbox_image(image, size):
     image_w, image_h = image.size
     image_shape = np.array([image_h, image_w])
     w, h = size
-    new_w = int(image_w * min(w/image_w, h/image_h))
-    new_h = int(image_h * min(w/image_w, h/image_h))
+    new_w = int(image_w * min(w*1.0/image_w, h*1.0/image_h))
+    new_h = int(image_h * min(w*1.0/image_w, h*1.0/image_h))
     resized_image = image.resize((new_w, new_h), Image.BICUBIC)
 
     boxed_image = Image.new('RGB', size, (128, 128, 128))
@@ -126,26 +128,43 @@ def letterbox_image(image, size):
 def preprocess_true_boxes(true_boxes, Input_shape, anchors, num_classes):
     """
     Preprocess true boxes to training input format
-    :param true_boxes: array, shape=(N, 100, 5)N:so luong anh,100:so object max trong 1 anh, 5:x_min,y_min,x_max,y_max,class_id
-                    Absolute x_min, y_min, x_max, y_max, class_code reletive to input_shape.
-    :param input_shape: array-like, hw, multiples of 32, shape = (2,)
-    :param anchors: array, shape=(9, 2), wh
-    :param num_classes: integer
-    :return: y_true: list(3 array), shape like yolo_outputs, xywh are reletive value 3 array [N,, 13, 13, 3, 85]
+    :param true_boxes: array, shape=(N, max_boxes, 5) 
+                              N: #images in a batch, 
+                              max_boxes: max #boxes in an image that we take into account
+                              5: x_min,y_min,x_max,y_max,class_id
+    :param input_shape: 416
+    :param anchors: array, shape=(9, 2), each row contains w & h.
+    :param num_classes: integer -> #classes in the dataset
+    :return: y_true: list(3 arrays)
+                     [
+                     array[N, 52, 52, 3*(num_classes+1+4)]
+                     array[N, 26, 26, 3*(num_classes+1+4)]
+                     array[N, 13, 13, 3*(num_classes+1+4)]
+                     ]
     """
     assert (true_boxes[..., 4] < num_classes).all(), 'class id must be less than num_classes'
-    anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+    #anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+    anchor_mask = [[0,1,2],[3,4,5],[7,8,9]]
     true_boxes = np.array(true_boxes, dtype=np.float32)
     input_shape = np.array([Input_shape, Input_shape], dtype=np.int32)
-    boxes_xy = (true_boxes[..., 0:2] + true_boxes[..., 2:4]) // 2  # [m, T, 2]  (x, y)center point of BB
-    boxes_wh = true_boxes[..., 2:4] - true_boxes[..., 0:2]  # w = x_max - x_min  [m, T, 2]
-                                                            # h = y_max - y_min
-    true_boxes[..., 0:2] = boxes_xy / input_shape[::-1]  # hw -> wh
-    true_boxes[..., 2:4] = boxes_wh / input_shape[::-1]  # hw -> wh
-
+    boxes_xy = (true_boxes[..., 0:2] + true_boxes[..., 2:4]) // 2   # [N, max_boxes, 2]  (x, y)center point of BB
+    boxes_wh = true_boxes[..., 2:4] - true_boxes[..., 0:2]  # [N, max_boxes, 2]
+                                                                    # w = x_max - x_min
+                                                                    # h = y_max - y_min
+    # normalize ??
+    true_boxes[..., 0:2] = boxes_xy *1.0/ input_shape[::-1]  # hw -> wh
+    true_boxes[..., 2:4] = boxes_wh *1.0/ input_shape[::-1]  # hw -> wh
+    # N = 32
     N = true_boxes.shape[0]
+    # grid_shapes = [[13,13], [26,26], [52,52]]
     grid_shapes = [input_shape // {0: 32, 1: 16, 2: 8}[l] for l in range(3)]
-    # grid_shapes = [np.array(input_shape // scale, dtype=np.int) for scale in [32, 16, 8]]  # [2,] ---> [3, 2]
+    '''
+    y_true = [
+             array[N, 13, 13, 3, 103]
+             array[N, 26, 26, 3, 103]
+             array[N, 52, 52, 3, 103]
+             ]
+    '''
     y_true = [np.zeros((N, grid_shapes[l][0], grid_shapes[l][1], len(anchor_mask[l]), 5 + int(num_classes)),
                        dtype=np.float32) for l in range(3)]  # (m, 13, 13, 3, 85)
 
@@ -153,14 +172,20 @@ def preprocess_true_boxes(true_boxes, Input_shape, anchors, num_classes):
     anchors = np.expand_dims(anchors, 0)  # [1, 3, 2]
     anchor_maxes = anchors / 2.  # w/2, h/2  [1, 3, 2]
     anchor_mins = -anchor_maxes   # -w/2, -h/2  [1, 3, 2]
-    valid_mask = boxes_wh[..., 0] > 0  # w>0 True, w=0 False
+    valid_mask = boxes_wh[..., 0] > 0  # w>0 True, w=0 False.  valid_mask = [N, max_boxes]
 
     for b in (range(N)):  # for all of N image
-        # Discard zero rows.
-        wh = boxes_wh[b, valid_mask[b]]  # image 0: wh [[[163., 144.]]]
+        # Discard zero rows. wh contains all valid bounding boxes for image b in the mini-batch.
+        # wh = [#valid bnd box , 2]
+        wh = boxes_wh[b, valid_mask[b]]  # image 0: wh [[[163., 144.]]] -> This might be hard to understand but it is correct...
+        
         # Expand dim to apply broadcasting.
+        '''
         if len(wh)==0:
             continue
+        '''
+        assert len(wh)>0, 'No useful bnd box info in the training image.'
+        # wh = [1, #valid bnd box , 2]
         wh = np.expand_dims(wh, -2)
         box_maxes = wh / 2.
         box_mins = -box_maxes
@@ -171,30 +196,19 @@ def preprocess_true_boxes(true_boxes, Input_shape, anchors, num_classes):
         intersect_area = intersect_wh[..., 0] * intersect_wh[..., 1]
         box_area = wh[..., 0] * wh[..., 1]
         anchor_area = anchors[..., 0] * anchors[..., 1]
-        iou = intersect_area / (box_area + anchor_area - intersect_area)
-
+        iou = intersect_area *1.0/ (box_area + anchor_area - intersect_area)
         # Find best anchor for each true box
         best_anchor = np.argmax(iou, axis=-1)
-        # print("Imageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee numero:")
-        # print("True_boxes numéro %s" %b)
-        # print(true_boxes[b][:10])
+
         for t, n in enumerate(best_anchor):
             for l in range(3):  # 1 in 3 scale
                 if n in anchor_mask[l]:  # choose the corresponding mask: best_anchor in [6, 7, 8]or[3, 4, 5]or[0, 1, 2]
-
-                    i = np.floor(true_boxes[b, t, 0] * grid_shapes[l][1]).astype(np.int32)  #ex: 3+1.2=4.2--> vao ô co y=4
-                    j = np.floor(true_boxes[b, t, 1] * grid_shapes[l][0]).astype(np.int32)  # ex: 3+0.5=3.5--> vao o co x=3 --> o (x,y)=(3,4)  # TODO
+                    i = np.floor(true_boxes[b, t, 0] * grid_shapes[l][1]).astype(np.int32)  # i -> x position in the grid cell
+                    j = np.floor(true_boxes[b, t, 1] * grid_shapes[l][0]).astype(np.int32)  # j -> y position in the grid cell
                     if grid_shapes[l][1]==13 and (i>=13 or j>=13):
-                        print(i)
-                    # print("object %s------------------------------"%t)
-                    # print(grid_shapes[l])
-                    # print("  j=%s, i=%s" %(j, i))
+                        print("object is on or out of the boundary of the image!")
                     k = anchor_mask[l].index(n)
-                    # print("  scale l:", l, "best anchor k:", k, anchors[:, l + n])
-
                     c = true_boxes[b, t, 4].astype(np.int32)  # idx classes in voc classes
-                    # print(b, c)
-                    # print("  idx classes c in voc:", c)
                     y_true[l][b, j, i, k, 0:4] = true_boxes[b, t, 0:4]  # l: scale; b; idx image; grid(i:y , j:x); k: best anchor; 0:4: (x,y,w,h)/input_shape
                     # print("  x,y,w,h/416:", y_true[l][b, j, i, k, 0:4])
                     y_true[l][b, j, i, k, 4] = 1  # score = 1

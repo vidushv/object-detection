@@ -1,5 +1,5 @@
 # CONFIGURE
-visible_GPU = "3,4"
+visible_GPU = "0"
 
 ##########################################################
 # change the path according to your project settings
@@ -17,6 +17,7 @@ anchors_path = project_path+'/model/yolo_anchors.txt'
 target_data_file = project_path+'/data/'+dataset_name+'_data.txt'
 # the txt file that stores classes in the dataset
 dataset_class_file = dataset_path+'/'+dataset_name+'_classes.txt'
+#dataset_class_file = project_path+'/data/coco_classes.txt'
 # the place that save splitted train file
 train_file_path = project_path+'/data/'+dataset_name+'_train'
 # the place that saves splitted val file
@@ -53,14 +54,14 @@ random = 1
 # score = 0.3
 # iou = 0.7
 
-num_epochs = 50
-batch_size = 16
-threshold = 0.3
+num_epochs = 80
+batch_size = 32
+threshold = 0.5
 ignore_thresh = 0.5
 truth_thresh = 1
 momentum = 0.9
 decay = 0.0005
-learning_rate = 0.001
+learning_rate = 1e-3
 burn_in = 1000
 max_batches = 500200
 
