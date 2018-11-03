@@ -5,7 +5,7 @@ visible_GPU = "0"
 # change the path according to your project settings
 dataset_name = 'dac'
 project_path = '/home/vv259/object-detection'
-dataset_path = '/home/vv259/dataset/data_training_March'
+dataset_path = '/home/vv259/dac_reduced/data_training_March'
 yolov3_h5_file = '/home/vv259/object-detection/model/yolov3.h5'
 ##########################################################
 
@@ -16,7 +16,7 @@ anchors_path = project_path+'/model/yolo_anchors.txt'
 # the txt file stores data
 target_data_file = project_path+'/data/'+dataset_name+'_data.txt'
 # the txt file that stores classes in the dataset
-dataset_class_file = project_path+ '/data/coco_classes.txt'
+dataset_class_file = project_path+ '/data/dac_classes.txt'
 # the place that save splitted train file
 train_file_path = project_path+'/data/'+dataset_name+'_train'
 # the place that saves splitted val file
