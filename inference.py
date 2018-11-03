@@ -237,6 +237,22 @@ def detect_one_batch(batch_number, input_img=''):
     print("average iou is: {}".format(sum(iou)/len(iou)))
     print("miss rate is: {}".format(miss*1.0/total_img))
 
+    def calc_iou(left,top,right,bottom,xmin,ymin,xmax,ymax):
+        intersect_left = np.max(left,xmin)
+        intersect_right = np.min(right,xmax)
+        intersect_top = np.min(top,ymax)
+        intersect_bottom = np.max(bottom,ymin)
+
+        intersect_area = calc_area(intersect_left, intersect_right, intersect_top, intersect_bottom)
+        b1_area = calc_area(left,right,top,bottom)
+        b2_area = calc_area(xmin,xmax,ymax,ymin)
+
+        iou = intersect_area/(b1_area + b2_area)
+        return iou
+
+    def calc_area(left,right,top,bottom):
+        return (right - left)*(top - bottom)
+
 if __name__ == '__main__':
 
     if args.image:
