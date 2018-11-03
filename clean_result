@@ -1,5 +1,9 @@
 cd test_img/output
+touch delete
 rm *
+touch .keep
 cd ..
 cd input
+touch delete
 rm *
+touch .keep

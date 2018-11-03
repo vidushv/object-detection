@@ -1,4 +1,4 @@
-# from configuration.config import Input_shape, channels, path, batch_size, epochs
+#from configuration.config import Input_shape, channels, path, batch_size, epochs
 from configuration.config import Input_shape, channels, batch_size, num_epochs, visible_GPU, Image_size, learning_rate
 from configuration.config import project_path, dataset_class_file, anchors_path, summary_writing_path
 from configuration.config import train_file_path, val_file_path, model_checkpoint_path, ignore_thresh, threshold
@@ -24,13 +24,15 @@ np.random.seed(101)
 # PATH = path + '/yolo3'
 classes_data = read_classes(dataset_class_file)
 anchors = read_anchors(anchors_path)
+print("num of classes in dac: {}".format(len(classes_data)))
+print(anchors)
 
 data_path_train = 'Do_not_use_for_now'
 data_path_valid = 'Do_not_use_for_now'
 data_path_test = 'Do_not_use_for_now'
 
 
-input_shape = (Input_shape, Input_shape)  # multiple of 32
+input_shape = (Input_shape, Input_shape)  # multiple of 32, now fixed to 416
 ########################################################################################################################
 """
 # Clear the current graph in each run, to avoid variable duplication
@@ -38,6 +40,7 @@ input_shape = (Input_shape, Input_shape)  # multiple of 32
 """
 print("Starting 1st session...")
 # Explicitly create a Graph object
+tf.reset_default_graph()
 graph = tf.Graph()
 with graph.as_default():
     global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -52,22 +55,28 @@ with graph.as_default():
         # Y = tf.placeholder(tf.float32, shape=[None, 100, 5])  # for box_data
     # Reshape images for visualization
     x_reshape = tf.reshape(X, [-1, Input_shape, Input_shape, 1])
-    tf.summary.image("input", x_reshape)
+    #tf.summary.image("input", x_reshape)
     # STEP 2: Building the graph #######################################################################################
     # Building the graph
     # Generate output tensor targets for filtered bounding boxes.
     scale1, scale2, scale3 = YOLOv3(X, len(classes_data)).feature_extractor()
+    print("size of scale1: {}".format(scale1))
+    print("size of scale2: {}".format(scale2))
+    print("size of scale3: {}".format(scale3))
     scale_total = [scale1, scale2, scale3]
 
     with tf.name_scope("Loss_and_Detect"):
         # Label
         y_predict = [Y1, Y2, Y3]
+        print("size of Y1: {}".format(Y1))
+        print("size of Y2: {}".format(Y2))
+        print("size of Y3: {}".format(Y3))
         # Calculate loss
         loss = compute_loss(scale_total, y_predict, anchors, len(classes_data), print_loss=False)
 
 
-        image_shappe = tf.placeholder(tf.float32, shape=[2,])
-        boxes, scores, classes = predict(scale_total, anchors, len(classes_data), image_shappe,
+        #image_shappe = tf.placeholder(tf.float32, shape=[2,])
+        boxes, scores, classes = predict(scale_total, anchors, len(classes_data), Image_size,
                                          score_threshold=threshold, iou_threshold=ignore_thresh)
 
 
@@ -84,12 +93,7 @@ with graph.as_default():
         optimizer = tf.train.AdamOptimizer(learning_rate=applied_learning_rate).minimize(loss, global_step=global_step)
         # optimizer = tf.train.RMSPropOptimizer(learning_rate=learning_rate, decay=decay).minimize(loss)
         # optimizer = tf.train.MomentumOptimizer(learning_rate, 0.01).minimize(loss)
-    # STEP 3: Build the evaluation step ####################################################################
-    # with tf.name_scope("Accuracy"):
-    #     # Model evaluation
-    #     accuracy = 1  #
-    # STEP 4: Merge all summaries for Tensorboard generation ###############################################
-    # create a saver
+
     saver = tf.train.Saver()
 
     # STEP 5: Train the model, and write summaries #########################################################
@@ -98,63 +102,54 @@ with graph.as_default():
     config.gpu_options.allow_growth = True
     # run_options = tf.RunOptions(report_tensor_allocations_upon_oom = True)
     with tf.Session(config=config, graph=graph) as sess:
-        # Merges all summaries collected in the default graph
-        summary_op = tf.summary.merge_all()
-        # Summary Writers
-        if(not os.path.isdir(summary_writing_path)):
-            os.mkdir(summary_writing_path)
-        train_summary_writer = tf.summary.FileWriter(summary_writing_path, sess.graph)
-        validation_summary_writer = tf.summary.FileWriter(summary_writing_path, sess.graph)
 
         sess.run(tf.global_variables_initializer())
-
-        # If you want to continue training from check point
-        # checkpoint = "/home/minh/PycharmProjects/yolo3/save_model/SAVER_MODEL_boatM/model.ckpt-" + "1"
-        # saver.restore(sess, checkpoint)
-
-        # epochs = 50  #
-        # batch_size = 32  # consider
-        # num_batches = 2922
         num_train_batches = len(os.listdir(train_file_path))
         num_val_batches = len(os.listdir(val_file_path))
-        best_loss_valid = 10e6
+
         for epoch in range(num_epochs):
-            print("train on epoch {}".format(epoch))
+            print("train on epoch {}".format(epoch+1))
             start_time = time.time()
             ## Training#######################################################################################
             mean_loss_train = []
-            learning_rate *= 0.98**epoch
-            if(epoch > 0 and epoch % 10 == 0):
-                print("learning rate changed to {}".format(epoch))
             for batch in range(num_train_batches):
                 x_train, box_data_train, image_shape_train, y_train = get_dac_batch_data(batch, data_path_train, \
-                    input_shape, anchors, train=True, num_classes=len(classes_data), max_boxes=1, load_previous=False)
-                summary_train, loss_train, _ = sess.run([summary_op, loss, optimizer],
-                                                            feed_dict={X: (x_train/255.), \
+                    input_shape, anchors, train=True, num_classes=len(classes_data), max_boxes=20, load_previous=False)
+                '''
+                for ele1 in range(13):
+                    for ele2 in range(13):
+                        print("ideal prediction box1: {}".format(y_train[0][0][ele1][ele2][0:104]))
+                        print("ideal prediction box1: {}".format(y_train[0][0][ele1][ele2][104:208]))
+                        print("ideal prediction box1: {}".format(y_train[0][0][ele1][ele2][208:312]))
+                '''
+                loss_train, _, box_array, score_array, class_array = sess.run([loss, optimizer, boxes, scores, classes],\
+                                                                       feed_dict={X: (x_train/255.), \
                                                                        Y1: y_train[0], \
                                                                        Y2: y_train[1], \
                                                                        Y3: y_train[2], \
-                                                                       applied_learning_rate: learning_rate})  # , options=run_options) 
-                train_summary_writer.add_summary(summary_train, epoch)
-                # Flushes the event file to disk
-                train_summary_writer.flush()
-                # summary_writer.add_summary(summary_train, counter)
-                mean_loss_train.append(loss_train)
+                                                                       applied_learning_rate: learning_rate})  # , options=run_options)
                 # calculate time
                 duration = time.time() - start_time
                 start_time = time.time()
                 print("(batch: {}, \tepoch: {})\tloss: {:.2f}\ttime: {:.1f}".format(batch+1, epoch + 1, loss_train, duration))
+                print("{} boxes founded in the image.".format(box_array.shape[0]))
 
-            # summary_writer.add_summary(summary_train, global_step=epoch)
-            mean_loss_train = np.mean(mean_loss_train)
-
+            if(epoch == 10):
+                learning_rate *= 0.5
+            elif(epoch == 60):
+                learning_rate *= 0.5
+            elif(epoch == 90):
+                learning_rate *= 0.5
+            print("learning rate changes to {}".format(learning_rate))
+            
+            ''' 
             # Validation #####################################################################################
             print("Begin validating...")
             start_time = time.time()
             mean_loss_valid = []
             for batch in range(num_val_batches):
                 x_valid, box_data_valid, image_shape_valid, y_valid = get_dac_batch_data(batch, data_path_valid, \
-                    input_shape, anchors,train=False, num_classes=len(classes_data), max_boxes=1, load_previous=False)
+                    input_shape, anchors,train=False, num_classes=len(classes_data), max_boxes=20, load_previous=False)
                 # Run summaries and measure accuracy on validation set
                 summary_valid, loss_valid = sess.run([summary_op, loss],
                                                     feed_dict={X: (x_valid/255.),
@@ -190,29 +185,17 @@ with graph.as_default():
                 checkpoint_path = model_checkpoint_path + "/model.ckpt"
                 saver.save(sess, checkpoint_path, global_step=epoch)
                 print("Model saved in file: %s" % checkpoint_path)
-
+            '''
+            if(epoch == num_epochs-1):
+                if(not os.path.isdir(model_checkpoint_path)):
+                    print("creating a folder for saving model checkpoints...")
+                    try:
+                        os.mkdir(model_checkpoint_path)
+                    except OSError:
+                        print("Fail to create a folder for saving checkpoints!!")
+                print("Save the model checkpoints...")
+                checkpoint_path = model_checkpoint_path + "/model.ckpt"
+                saver.save(sess, checkpoint_path, global_step=epoch)
+                print("Model saved in file: %s" % checkpoint_path)
         print("Tuning completed!")
-
-        # Testing ######################################################################################################
-        # mean_loss_test = []
-        # for start in (range(0, 128, batch_size)):
-        #     end = start + batch_size
-        #     if end > number_image_train:
-        #         end = number_image_train
-        #     # Loss in test data set
-        #     summary_test, loss_test = sess.run([summary_op, loss],
-        #                                        feed_dict={X: (x_test[start:end]/255.),
-        #                                                   Y1: y_test[0][start:end],
-        #                                                   Y2: y_test[1][start:end],
-        #                                                   Y3: y_test[2][start:end]})
-        #     mean_loss_test.append(mean_loss_test)
-        #     # print("Loss on test set: ", (loss_test))
-        # mean_loss_test = np.mean(mean_loss_test)
-        # print("Mean loss in all of test set: ", mean_loss_test)
-        # summary_writer.flush()
-        train_summary_writer.close()
-        validation_summary_writer.close()
-        # summary_writer.close()
-
-
 

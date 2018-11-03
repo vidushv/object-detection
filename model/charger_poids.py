@@ -31,7 +31,7 @@ def B(number_conv):
             if 68 <= number_conv <= 74:
                 name = 'batch_normalization_' + str(number_conv-2)
                 if number_conv==74:
-                    print("Finir de charger les poids! <- what is this?")
+                    print("Loading bias to layer 74. Load weights successfully.")
             elif 66 >= number_conv >= 60:
                 name = 'batch_normalization_' + str(number_conv - 1)
             elif 0 < number_conv <= 58:

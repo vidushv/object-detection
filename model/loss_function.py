@@ -11,10 +11,10 @@ from model.detect_function import yolo_head
 def compute_loss(yolo_outputs, y_true, anchors, num_classes, ignore_thresh=ignore_thresh, print_loss=False):
     """
         Return yolo_loss tensor
-    :param YOLO_outputs: list of 3 sortie of yolo_neural_network, ko phai cua predict (N, 13, 13, 3*14)
+    :param YOLO_outputs: list of 3 sortie of yolo_neural_network, predict [(N, 13, 13, 3*(num_classes+1+4)), (N,26,26,3*(num_classes+1+4)), (N,52,52,3*(num_classes+1+4))]
     :param Y_true: list(3 array) [(N,13,13,3,85), (N,26,26,3,85), (N,52,52,3,14)]
-    :param anchors: array, shape=(T, 2), wh
-    :param num_classes: 80
+    :param anchors: array, shape=(T, 2), T=9 here.
+    :param num_classes = len(classes)
     :param ignore_thresh:float, the iou threshold whether to ignore object confidence loss
     :return: loss
     """
@@ -39,7 +39,7 @@ def compute_loss(yolo_outputs, y_true, anchors, num_classes, ignore_thresh=ignor
 
         # Darknet raw box to calculate loss.
         raw_true_xy = y_true[l][..., :2] * grid_shapes[l][::-1] - grid
-        raw_true_wh = K.log(y_true[l][..., 2:4] / anchors[anchor_mask[l]] * input_shape[::-1])
+        raw_true_wh = K.log(y_true[l][..., 2:4] *1.0 / anchors[anchor_mask[l]] * input_shape[::-1])
         raw_true_wh = K.switch(object_mask, raw_true_wh, K.zeros_like(raw_true_wh))  # avoid log(0)=-inf
         box_loss_scale = 2 - y_true[l][..., 2:3] * y_true[l][..., 3:4]
 
@@ -67,10 +67,10 @@ def compute_loss(yolo_outputs, y_true, anchors, num_classes, ignore_thresh=ignor
                                                                     from_logits=True) * ignore_mask
         class_loss = object_mask * K.binary_crossentropy(true_class_probs, raw_pred[..., 5:], from_logits=True)
 
-        xy_loss = K.sum(xy_loss) / mf
-        wh_loss = K.sum(wh_loss) / mf
-        confidence_loss = K.sum(confidence_loss) / mf
-        class_loss = K.sum(class_loss) / mf
+        xy_loss = K.sum(xy_loss) *1.0 / mf
+        wh_loss = K.sum(wh_loss) *1.0 / mf
+        confidence_loss = K.sum(confidence_loss) *1.0 / mf
+        class_loss = K.sum(class_loss) *1.0 / mf
         loss += xy_loss + wh_loss + confidence_loss + class_loss
         if print_loss:
             loss = tf.Print(loss, [loss, xy_loss, wh_loss, confidence_loss, class_loss, K.sum(ignore_mask)],

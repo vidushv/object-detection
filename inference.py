@@ -1,11 +1,14 @@
 # from argparse import ArgumentParser
 
-from configuration.config import Input_shape, channels, threshold, ignore_thresh, visible_GPU, num_epochs
+from configuration.config import Input_shape, channels, threshold, ignore_thresh, visible_GPU, num_epochs, max_boxes
 from configuration.config import anchors_path, project_path, dataset_name, dataset_class_file, model_checkpoint_path, font_file
 from configuration.config import input_test_img_path, output_test_img_path, train_file_path, val_file_path
+
 from model.net import YOLOv3
 from model.detect_function import predict
-from utils.yolo_utils import read_anchors, read_classes, letterbox_image  # , resize_image
+
+from utils.yolo_utils import read_anchors, read_classes, letterbox_image, calc_iou  # , resize_image
+
 from PIL import Image, ImageFont, ImageDraw
 from timeit import default_timer as timer  # to calculate FPS
 from pathlib import Path
@@ -52,15 +55,6 @@ class YOLO(object):
         # LOADING SESSION...
         self.boxes, self.scores, self.classes, self.sess = self.load()
 
-    # @staticmethod
-    # def argument():
-    #     parser = argparse.ArgumentParser(description='COCO or VOC or customized dataset')
-    #     parser.add_argument('--COCO', action='store_true', help='COCO flag')
-    #     # parser.add_argument('--other', action='store_true', help='customized dataset flag')
-    #     parser.add_argument('--image', action='store_true', help='image detection')
-    #     parser.add_argument('--name', type=str, default='', help='name of the test image')
-    #     args = parser.parse_args()
-    #     return args
 
     def load(self):
         # Remove nodes from graph or reset entire default graph
@@ -77,16 +71,13 @@ class YOLO(object):
         # Generate output tensor targets for filtered bounding boxes.
         self.x = tf.placeholder(tf.float32, shape=[None, Input_shape, Input_shape, channels])
         self.image_shape = tf.placeholder(tf.float32, shape=[2,])
-        # self.is_training = tf.placeholder(tf.bool)
-        # image_shape = np.array([image.size[0], image.size[1]])  # tf.placeholder(tf.float32, shape=[2,])
 
         # Generate output tensor targets for filtered bounding boxes.
-        # scale1, scale2, scale3 = YOLOv3(self.x, len(self.class_names), trainable=self.trainable, is_training=self.is_training).feature_extractor()
         scale1, scale2, scale3 = YOLOv3(self.x, len(self.class_names), trainable=self.trainable).feature_extractor()
         scale_total = [scale1, scale2, scale3]
 
         # detect
-        boxes, scores, classes = predict(scale_total, self.anchors, len(self.class_names), self.image_shape,
+        boxes, scores, classes = predict(scale_total, self.anchors, len(self.class_names), self.image_shape, max_boxes=max_boxes,
                                          score_threshold=self.threshold, iou_threshold=self.ignore_thresh)
 
         # Add ops to save and restore all the variables
@@ -99,9 +90,7 @@ class YOLO(object):
         sess = tf.Session(config = config)
         sess.run(tf.global_variables_initializer())
         
-        # # epoch = input('Entrer a check point at epoch:')
         # # For the case of COCO
-
         if(self.trainable):
             epoch = num_epochs if self.COCO == False else 2000
             checkpoint = model_checkpoint_path + '/model.ckpt-' + str(epoch-1)
@@ -134,21 +123,21 @@ class YOLO(object):
         else:
             new_image_size = (image.width - (image.width % 32), image.height - (image.height % 32))
             boxed_image, image_shape = letterbox_image(image, new_image_size)
-            # boxed_image, image_shape = resize_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
 
-        print("heights, widths:", image_shape)
         image_data /= 255.
-        inputs = np.expand_dims(image_data, 0)  # Add batch dimension. #
+        inputs = np.expand_dims(image_data, 0)  # Add batch dimension.
         out_boxes, out_scores, out_classes = self.sess.run([self.boxes, self.scores, self.classes],
                                                            feed_dict={self.x: inputs,
                                                                       self.image_shape: image_shape,
-                                                                      # self.is_training: False
                                                                       })
-        print("box matrix",out_boxes)
-        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
+        print('Found {} boxes in the image'.format(len(out_boxes)))
+        left = 0
+        top = 0
+        right = 0
+        bottom = 0
 
-        # Visualisation#################################################################################################
+        # Visualisation########################################################################################
         font = ImageFont.truetype(font=font_file, size=np.floor(3e-2 * image.size[1] + 0.5).astype(np.int32))
         thickness = (image.size[0] + image.size[1]) // 500  # do day cua BB
 
@@ -179,99 +168,32 @@ class YOLO(object):
             draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=self.colors[c])
             draw.text(text_origin, label, fill=(0, 0, 0), font=font)
             del draw
-        return image
+        return image, left, top, right, bottom
 
-def detect_video(yolo, video_path=None, output_video=None):
-    import urllib.request as urllib
-    import cv2
 
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    fps = 20.0  # display fps frame per second
-    accum_time = 0
-    curr_fps = 0
-    prev_time = timer()
-    if video_path=='stream':
-        url = 'http://10.18.97.1:8080/shot.jpg'
-        out = cv2.VideoWriter(output_video, fourcc, fps, (1280, 720))
-        while True:
+def parse_xml(path_to_file_name):
+    import xml.etree.ElementTree as ET
+    # parse the xml file into a tree
+    tree = ET.parse(path_to_file_name)
+    # get the root of the tree. In DAC case, the root is <annotation>
+    root = tree.getroot()
+    # the first level
+    file_name = str(root.find("filename").text)
+    size = root.find("size")
+    obj = root.find("object")
+    # the second level
+    width = float(size.find("width").text)
+    height = float(size.find("height").text)
+    class_name = str(obj.find("name").text)
+    bndbox = obj.find("bndbox")
+    # the third level
+    xmin = str(bndbox.find("xmin").text)
+    xmax = str(bndbox.find("xmax").text)
+    ymin = str(bndbox.find("ymin").text)
+    ymax = str(bndbox.find("ymax").text)
 
-            # Use urllib to get the image and convert into a cv2 usable format
-            imgResp = urllib.urlopen(url)
-            imgNp = np.array(bytearray(imgResp.read()), dtype=np.uint8)
-            img = cv2.imdecode(imgNp, -1)
-            # print(np.shape(img))  # get w, h from here
+    return file_name, class_name, xmin, ymin, xmax, ymax
 
-            image = Image.fromarray(img)
-            image = yolo.detect_image(image)
-            result = np.asarray(image)
-
-            curr_time = timer()
-            exec_time = curr_time - prev_time
-            prev_time = curr_time
-            accum_time = accum_time + exec_time
-            curr_fps = curr_fps + 1
-            if accum_time > 1:
-                accum_time = accum_time - 1
-                fps = "FPS: " + str(curr_fps)
-                curr_fps = 0
-            cv2.putText(result, text=fps, org=(3, 15), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                        fontScale=0.50, color=(255, 0, 0), thickness=2)
-            # cv2.namedWindow("result", cv2.WINDOW_NORMAL)
-            cv2.imshow("Result", result)
-            out.write(result)
-
-            # To give the processor some less stress
-            # time.sleep(0.1)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        out.release()
-        # Closes all the frames
-        cv2.destroyAllWindows()
-
-        yolo.sess.close()
-    else:
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            raise IOError("Couldn't open webcam or video")
-        # The size of the frames to write
-        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        out = cv2.VideoWriter(output_video, fourcc, fps, (w, h))
-        while True:
-            ret, frame = cap.read()
-            if ret==True:
-                image = Image.fromarray(frame)
-
-                image = yolo.detect_image(image)
-                result = np.asarray(image)
-
-                curr_time = timer()
-                exec_time = curr_time - prev_time
-                prev_time = curr_time
-                accum_time = accum_time + exec_time
-                curr_fps = curr_fps + 1
-                if accum_time > 1:
-                    accum_time = accum_time - 1
-                    fps = "FPS: " + str(curr_fps)
-                    curr_fps = 0
-                cv2.putText(result, text=fps, org=(3, 15), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                            fontScale=0.50, color=(255, 0, 0), thickness=2)
-                cv2.namedWindow("Result", cv2.WINDOW_NORMAL)
-                cv2.imshow("Result", result)
-
-                out.write(result)
-
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-            else:
-                break
-        cap.release()
-        out.release()
-        # Closes all the frames
-        cv2.destroyAllWindows()
-
-        yolo.sess.close()
 
 def detect_img(yolo, batch_number, input_img='', ):
     output_name = input_img.split("/")[-1]
@@ -280,11 +202,11 @@ def detect_img(yolo, batch_number, input_img='', ):
     except:
         print('Open Error! Try again!')
     else:
-        r_image = yolo.detect_image(image)
-        r_image.save(output_test_img_path+'/'+'result_'+output_name)
-        # r_image.show()
+        r_image, left, top, right, bottom = yolo.detect_image(image)
+        # r_image.save(output_test_img_path+'/'+'result_'+output_name)
     if(batch_number<0):
         yolo.sess.close()
+    return left, top, right, bottom
 
 def detect_one_batch(batch_number, input_img=''):
     if(args.train_batch>=0):
@@ -292,6 +214,9 @@ def detect_one_batch(batch_number, input_img=''):
     else:
         annotation_path = val_file_path + '/' + 'val_batch_{}'.format(batch_number) + '.txt'
     yolo_model = YOLO()
+    iou = []
+    miss = 0
+    total_img = 0
     with open(annotation_path) as f:
         GG = f.readlines()
         # np.random.shuffle(GG)
@@ -300,19 +225,19 @@ def detect_one_batch(batch_number, input_img=''):
             filename = line[0]
             if filename[-1] == '\n':
                 filename = filename[:-1]
-            detect_img(yolo_model, batch_number, filename)
+            left, top, right, bottom = detect_img(yolo_model, batch_number, filename)
+            if(left==0 and top==0 and right==0 and bottom==0):
+                miss += 1
+            else:
+                _, _, xmin, ymin, xmax, ymax = parse_xml(filename[:-3]+'xml')
+                iou.append(calc_iou(left, top, right, bottom, int(xmin), int(ymin), int(xmax), int(ymax)))
+            total_img += 1
         f.close()
+    #print(iou)
+    print("average iou is: {}".format(sum(iou)/len(iou)))
+    print("miss rate is: {}".format(miss*1.0/total_img))
 
 if __name__ == '__main__':
-    # yolov3 = YOLO()
-    # if yolov3.args.image:
-    #     input_image = input_test_img_path + '/' + yolov3.args.name
-    #     output = output_test_img_path + '/' + 'result_' + yolov3.args.name
-    #     detect_img(yolov3, input_img=input_image, output_img=output)
-    # else:
-    #     video_path = sys.argv[3]
-    #     output = sys.argv[4]
-    #     detect_video(YOLO(), video_path, output)
 
     if args.image:
         if(args.train_batch>=0):

@@ -1,6 +1,6 @@
 # Object Detection - YOLOv3 - Tensorflow
 
-This project is about object detection based on YOLOv3 network. The original YOLOv3 tendorflow code is forked from [here](https://gist.github.com/yz2499/960f26114a9298e0eb96cff9d809bc4b). I rearranged the folder system and made some changes in the code to make it cleaner and easier for training and testing on a customized dataset.
+This project is about object detection based on YOLOv3 network. The original YOLOv3 tendorflow code is forked from [here](https://github.com/maiminh1996/YOLOv3-tensorflow). I rearranged the folder system and made some changes in the code to make it cleaner and easier for training and testing on a customized dataset.
 
 ## Getting Started
 
@@ -9,7 +9,7 @@ These instructions will get you a copy of the project up and running on your loc
 ### Prerequisites
 
 ```
-python - 3.6.4
+python - 2.7.14
 numpy - 1.13.3
 h5py - 2.8.0
 tensorflow - 1.10.1
