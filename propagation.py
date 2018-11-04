@@ -147,6 +147,10 @@ class YOLO(object):
                                                                       })
 
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
+        left = 0
+        right = 0
+        top = 0
+        bottom = 0
 
         # Visualisation#################################################################################################
         font = ImageFont.truetype(font=font_file, size=np.floor(3e-2 * image.size[1] + 0.5).astype(np.int32))
@@ -179,7 +183,30 @@ class YOLO(object):
             draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=self.colors[c])
             draw.text(text_origin, label, fill=(0, 0, 0), font=font)
             del draw
-        return image
+        return image, left, top, right, bottom
+
+def parse_xml(path_to_file_name):
+    import xml.etree.ElementTree as ET
+    # parse the xml file into a tree
+    tree = ET.parse(path_to_file_name)
+    # get the root of the tree. In dac case, the root is <annotation>
+    root = tree.getroot()
+    # get the first level
+    file_name = str(root.find("filename").text)
+    size = root.find("size")
+    obj = root.find("object")
+    # the second level
+    width = float(size.find("width").text)
+    height = float(size.find("height").text)
+    class_name = str(obj.find("name").text)
+    bndbox = obj.find("bndbox")
+    # the third level
+    xmin = str(bndbox.find("xmin").text) 
+    xmax = str(bndbox.find("xmax").text) 
+    ymin = str(bndbox.find("ymin").text) 
+    ymax = str(bndbox.find("ymax").text) 
+
+    return file_name, class_name, xmin, ymin, xmax, ymax
 
 def detect_video(yolo, video_path=None, output_video=None):
     import urllib.request as urllib
@@ -278,13 +305,14 @@ def detect_img(yolo, batch_number, input_img='', ):
     try:
         image = Image.open(input_img)
     except:
-        print('Open Error! Try again!')
+	    print('Open Error! Try again!')
     else:
-        r_image = yolo.detect_image(image)
+        r_image, left, top, right, bottom = yolo.detect_image(image)
         r_image.save(output_test_img_path+'/'+'result_'+output_name)
         # r_image.show()
     if(batch_number<0):
         yolo.sess.close()
+    return left, top, right, bottom
 
 def detect_one_batch(batch_number, input_img=''):
     if(args.train_batch>=0):
@@ -292,6 +320,9 @@ def detect_one_batch(batch_number, input_img=''):
     else:
         annotation_path = val_file_path + '/' + 'val_batch_{}'.format(batch_number) + '.txt'
     yolo_model = YOLO()
+    iou = []
+    miss = 0
+    total_img = 0
     with open(annotation_path) as f:
         GG = f.readlines()
         # np.random.shuffle(GG)
@@ -300,8 +331,36 @@ def detect_one_batch(batch_number, input_img=''):
             filename = line[0]
             if filename[-1] == '\n':
                 filename = filename[:-1]
-            detect_img(yolo_model, batch_number, filename)
+            left, top, right, bottom = detect_img(yolo_model, batch_number, filename)
+            if (left==0 and right==0 and top==0 and bottom==0 ):
+                miss += 1
+            else:
+                _, _, xmin, ymin, xmax, ymax = parse_xml(filename[:-3]+'xml')
+                cur_iou = calc_iou(left, top, right, bottom, int(xmin), int(ymin), int(xmax), int(ymax))
+                iou.append(cur_iou)
+                print("IOU:{}".format(cur_iou))
+            total_img += 1
         f.close()
+        print("average IOU is: {}".format(sum(iou)/len(iou)))
+        print("miss rate is: {}".format(miss*1.0/total_img))
+
+def calc_iou(left,top,right,bottom,xmin,ymin,xmax,ymax):
+    #print("left:{}, top:{}, right:{}, bottom:{}".format(left, top, right, bottom))
+    #print("xmin:{}, ymin:{}, xmax:{}, ymax:{}".format(xmin, ymin, xmax, ymax))
+    intersect_left = max(left,xmin)
+    intersect_right = min(right,xmax)
+    intersect_top = max(top,ymin)
+    intersect_bottom = min(bottom,ymax)
+
+    intersect_area = calc_area(intersect_left, intersect_right, intersect_top, intersect_bottom)
+    b1_area = calc_area(left,right,top,bottom)
+    b2_area = calc_area(xmin,xmax,ymin,ymax)
+
+    iou = intersect_area/(b1_area + b2_area - intersect_area)
+    return iou
+
+def calc_area(left,right,top,bottom):
+    return (right - left)*(bottom - top)
 
 if __name__ == '__main__':
     # yolov3 = YOLO()
