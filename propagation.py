@@ -341,7 +341,8 @@ def detect_one_batch(batch_number, input_img=''):
                 print("IOU:{}".format(cur_iou))
             total_img += 1
         f.close()
-        print("average IOU is: {}".format(sum(iou)/len(iou)))
+        print("average IoU is: {}".format(sum(iou)/total_img))
+        print("IoU precision is: {}".format(sum(iou)/len(iou)))
         print("miss rate is: {}".format(miss*1.0/total_img))
 
 def calc_iou(left,top,right,bottom,xmin,ymin,xmax,ymax):
