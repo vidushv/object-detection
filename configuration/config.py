@@ -5,7 +5,7 @@ visible_GPU = "0"
 # change the path according to your project settings
 dataset_name = 'dac'
 project_path = '/home/vv259/object-detection'
-dataset_path = '/home/vv259/dataset/data_training_March'
+dataset_path = '/home/vv259/dataset/reduced_data/data_training_March'
 yolov3_h5_file = '/home/vv259/object-detection/model/yolov3.h5'
 ##########################################################
 
@@ -64,4 +64,3 @@ max_batches = 500200
 # policy=steps
 learning_rate_steps = [40000, 45000]  # steps=400000,450000
 learning_rate_scales = [0.1, 0.1]  # scales=.1,.1
-anchors = 10,13,  16,30,  33,23,  30,61,  62,45,  59,119,  116,90,  156,198,  373,326
