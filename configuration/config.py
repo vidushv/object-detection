@@ -12,11 +12,11 @@ yolov3_h5_file = '/home/vv259/object-detection/model/yolov3.h5'
 
 
 # yolov3 anchor file path
-anchors_path = project_path+'/model/yolo_anchors.txt'
+anchors_path = project_path+'/model/' + dataset_name + '_anchors.txt'
 # the txt file stores data
 target_data_file = project_path+'/data/'+dataset_name+'_data.txt'
 # the txt file that stores classes in the dataset
-dataset_class_file = project_path+ '/data/coco_classes.txt'
+dataset_class_file = project_path+ '/data/' + dataset_name + '_classes.txt'
 # the place that save splitted train file
 train_file_path = project_path+'/data/'+dataset_name+'_train'
 # the place that saves splitted val file
@@ -49,9 +49,6 @@ hue = 0.1
 jitter = 0.3
 random = 1
 
-# training
-# score = 0.3
-# iou = 0.7
 
 num_epochs = 50
 batch_size = 16
@@ -68,11 +65,3 @@ max_batches = 500200
 learning_rate_steps = [40000, 45000]  # steps=400000,450000
 learning_rate_scales = [0.1, 0.1]  # scales=.1,.1
 anchors = 10,13,  16,30,  33,23,  30,61,  62,45,  59,119,  116,90,  156,198,  373,326
-# num = 9 #9 anchors per grille celle
-# NumClasses = 80
-
-# DAC anchors
-anchors = 11, 35,   16, 20,   20, 43,   27, 61,   29, 29,   36, 90,   43, 43,   68, 140,   70, 66
-
-# COCO anchors
-# anchors = 10,13,  16,30,  33,23,  30,61,  62,45,  59,119,  116,90,  156,198,  373,326
