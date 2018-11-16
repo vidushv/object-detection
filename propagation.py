@@ -353,6 +353,9 @@ def calc_iou(left,top,right,bottom,xmin,ymin,xmax,ymax):
     intersect_top = max(top,ymin)
     intersect_bottom = min(bottom,ymax)
 
+    if intersect_right - intersect_left < 0 or intersect_bottom - intersect_top < 0:
+         return 0
+
     intersect_area = calc_area(intersect_left, intersect_right, intersect_top, intersect_bottom)
     b1_area = calc_area(left,right,top,bottom)
     b2_area = calc_area(xmin,xmax,ymin,ymax)
