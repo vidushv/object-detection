@@ -55,6 +55,10 @@ def yolo_head(feature_maps, anchors, num_classes, input_shape, calc_loss=False):
         box_wh = tf.exp(feature_maps_reshape[..., 2:4], name='w_h')  # [None, 13, 13, 3, 2]
         tf.summary.histogram(box_wh.op.name + '/activations', box_wh)
         box_confidence = tf.sigmoid(feature_maps_reshape[..., 4:5], name='confidence')  # [None, 13, 13, 3, 1]
+        ########  obtain the max confidence of each image #########
+        max_confidence = tf.reduce_max(box_confidence,axis=(1,2),keepdims=True)
+        box_confidence = tf.floor_div(box_confidence, max_confidence)
+        ###########################################################
         tf.summary.histogram(box_confidence.op.name + '/activations', box_confidence)
         box_class_probs = tf.sigmoid(feature_maps_reshape[..., 5:], name='class_probs')  # [None, 13, 13, 3, 80]
         tf.summary.histogram(box_class_probs.op.name + '/activations', box_class_probs)
