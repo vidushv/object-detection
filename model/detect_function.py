@@ -55,14 +55,18 @@ def yolo_head(feature_maps, anchors, num_classes, input_shape, calc_loss=False):
         box_wh = tf.exp(feature_maps_reshape[..., 2:4], name='w_h')  # [None, 13, 13, 3, 2]
         tf.summary.histogram(box_wh.op.name + '/activations', box_wh)
         box_confidence = tf.sigmoid(feature_maps_reshape[..., 4:5], name='confidence')  # [None, 13, 13, 3, 1]
+        ########  obtain the max confidence of each image #########
+        max_confidence = tf.reduce_max(box_confidence,axis=(1,2),keepdims=True)
+        box_confidence = tf.floor_div(box_confidence, max_confidence)
+        ###########################################################
         tf.summary.histogram(box_confidence.op.name + '/activations', box_confidence)
         box_class_probs = tf.sigmoid(feature_maps_reshape[..., 5:], name='class_probs')  # [None, 13, 13, 3, 80]
         tf.summary.histogram(box_class_probs.op.name + '/activations', box_class_probs)
         # Adjust predictions to each spatial grid point and anchor size.
         # Note: YOLO iterates over height index before width index.
-        box_xy = (box_xy + grid) / tf.cast(grid_shape[::-1],  # (x,y + grid)/13. ---> in between (0., 1.)
+        box_xy = (box_xy + grid) *1.0/ tf.cast(grid_shape[::-1],  # (x,y + grid)/13. ---> in between (0., 1.)
                                            dtype=feature_maps_reshape.dtype)  # [None, 13, 13, 3, 2]
-        box_wh = box_wh * anchors_tensor / tf.cast(input_shape[::-1],  # following to the scale
+        box_wh = box_wh * anchors_tensor *1.0/ tf.cast(input_shape[::-1],  # following to the scale
                                                    dtype=feature_maps_reshape.dtype)  # [None, 13, 13, 3, 2]
 
     if calc_loss == True:
@@ -92,10 +96,10 @@ def yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape):
     with tf.name_scope('resize_to_scale_correspond'):
         """un image (640, 480) to scale1 (stride 32)(13x13)
         ---> new shape = (13, 10)"""
-        constant = (input_shape / image_shape)
+        constant = (input_shape *1.0 / image_shape)
         # constant = tf.reshape((input_shape / image_shape), shape=[batch_size, 2])  # 416/640, 416/480
         # min=[]
-        min = tf.minimum(constant[0], constant[1])
+        min_ = tf.minimum(constant[0], constant[1])
         # for i in range(batch_size):
         #     #i+=1
         #     x = tf.minimum(constant[i][0], constant[i][1])
@@ -107,11 +111,11 @@ def yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape):
         # min = tf.cast([min[0], min[1], min[2]], dtype=constant.dtype)
         # min = tf.reshape(min, shape=[batch_size, 2])
 
-        new_shape = image_shape * min  # 640*(416/640), 480*(416/640)
+        new_shape = image_shape * min_  # 640*(416/640), 480*(416/640)
         new_shape = tf.round(new_shape)  # lam tron ---> (416, 312)
 
-    offset = (input_shape - new_shape) / (input_shape*2.)  # 0,  (416-312)/2/416=0.125
-    scale = input_shape / new_shape  # (1, 416/312)
+    offset = (input_shape - new_shape)*1.0 / (input_shape*2.)  # 0,  (416-312)/2/416=0.125
+    scale = input_shape *1.0 / new_shape  # (1, 416/312)
 
     with tf.name_scope('return_corners_box'):
         # box in scale
