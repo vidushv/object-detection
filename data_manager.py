@@ -22,13 +22,14 @@ what we use in config.py:
 #     parser.add_argument('--extract', action='store_true', help='extract a subset of the dataset')
 #     parser.add_argument('--train', type=int, default=0, help='number of train batches that will be extracted')
 #     parser.add_argument('--val', type=int, default=0, help='number of validation batches that will be extracted')
-#     args = parser.parse_args()
+#     perser.add_argument('--subset', type=float, default=1, help='Specify subset of data that will be extracted 0-1')
 #     return args
 # args = argument()
 parser = argparse.ArgumentParser(description='Choose the whole dataset or a subset.')
 parser.add_argument('--extract', action='store_true', help='extract a subset of the dataset')
 parser.add_argument('--train', type=int, default=0, help='number of train batches that will be extracted')
 parser.add_argument('--val', type=int, default=0, help='number of validation batches that will be extracted')
+parser.add_argument('--subset', type=float, default=1, help='Specify subset of data that will be extracted 0-1')
 args = parser.parse_args()
 
 
@@ -103,13 +104,17 @@ def main():
     if(os.path.isfile(config.target_data_file)):
         print("data.txt file already exist")
     else:
+        
         # extract classes of the dataset from txt file
         all_classes = classes()
         # flush/create the file
         open(config.target_data_file, 'w+').close()
         # traverse the dataset topdown
         for (root, dirs, files) in os.walk(config.dataset_path, topdown=True):
+            # Only extract subset proportion of images from each class.
+            subset = args.subset * len(files)
             print('Now going through the folder '+ root)
+            count = 0
             for file in files:
                 if '.xml' in file:
                     # extract elements that'll be written into file
@@ -121,6 +126,9 @@ def main():
                     txt_file = open(config.target_data_file, 'a')
                     txt_file.write(image_path + '$$' + xmin + ',' + ymin + ',' + xmax + ',' + ymax + ',' + str(index_class) + '\n')
                     txt_file.close()
+                    count += 1
+                if count == subset:
+                     break
 
 
     # Separate the whole data.txt into train.txt and val.txt
