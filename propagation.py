@@ -116,7 +116,7 @@ class YOLO(object):
         
         return boxes, scores, classes, sess
 
-    def detect_image(self, image):
+    def detect_image(self, image, xmin, ymin, xmax, ymax):
         # Generate colors for drawing bounding boxes.
         hsv_tuples = [(x / len(self.class_names), 1., 1.) for x in range(len(self.class_names))]
         self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
@@ -178,8 +178,17 @@ class YOLO(object):
                 text_origin = np.array([left, top + 1])
 
             # My kingdom for a good redistributable image drawing library.
+            """
+            try drawing groundtruth with white boxes
+            """
+            #################################
+            xmin, ymin = int(xmin), int(ymin)
+            xmax, ymax = int(xmax), int(ymax)
+            #################################
             for j in range(thickness):
                 draw.rectangle([left + j, top + j, right - j, bottom - j], outline=self.colors[c])
+                draw.rectangle([xmin + j, ymin + j, xmax - j, ymax - j], outline='white')
+            
             draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=self.colors[c])
             draw.text(text_origin, label, fill=(0, 0, 0), font=font)
             del draw
@@ -304,10 +313,11 @@ def detect_img(yolo, batch_number, input_img='', ):
     output_name = input_img.split("/")[-1]
     try:
         image = Image.open(input_img)
+        _, _, xmin, ymin, xmax, ymax = parse_xml(input_img[:-3]+'xml')
     except:
 	    print('Open Error! Try again!')
     else:
-        r_image, left, top, right, bottom = yolo.detect_image(image)
+        r_image, left, top, right, bottom = yolo.detect_image(image, xmin, ymin, xmax, ymax)
         r_image.save(output_test_img_path+'/'+'result_'+output_name)
         # r_image.show()
     if(batch_number<0):
